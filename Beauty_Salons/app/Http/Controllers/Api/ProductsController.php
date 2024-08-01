@@ -184,16 +184,6 @@ class ProductsController extends Controller
                 Storage::disk('uploads')->delete($old_image);
             }
 
-            // if ($request->has('quantity')) {
-            //     $salon_id = $admin->salon_id;
-            //     $salon = Salon::query()->find($salon_id);
-            //     if ($salon && $salon->products()->where('product_id', $id)->exists()) {
-            //         $salon->products->updateExistingPivot($id, ['quantity' => $request->quantity]);
-            //         return response()->json(['message' => 'Product quantity updated successfully'], 200);
-            //     } else {
-            //         return response()->json(['message' => 'Product not found in this salon'], 404);
-            //     }
-            // }
             $product->update($data);
         } else
 

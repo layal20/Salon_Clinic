@@ -60,7 +60,6 @@ Route::post('admin/store', [AdminsController::class, 'store']);
 Route::post('admin/update/{id}', [AdminsController::class, 'update']);
 Route::delete('admin/delete/{id}', [AdminsController::class, 'destroy']);
 
-// Route::get('findCustomer/{name}', [AdminController::class, 'searchAboutCustomer'])->name('search_customer');;
 Route::get('findService/{name}', [CustomersController::class, 'searchAboutService'])->name('search_service');;
 Route::get('findProduct/{name}', [CustomersController::class, 'searchAboutProduct'])->name('search_product');
 Route::get('findSalon/{name}', [CustomersController::class, 'searchAboutSalon'])->name('search_salon');
@@ -74,4 +73,3 @@ Route::post('loginAdmin', [AuthController::class, 'loginAdmin']);
 
 Route::post('customerRegister', [AuthController::class, 'CustomerRegister']);
 Route::post('customerLogin', [AuthController::class, 'CustomerLogin']);
-Route::post('logout' , [AuthController::class , 'logout']);

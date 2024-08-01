@@ -166,8 +166,8 @@ class AdminsController extends Controller
         if (!$admin) {
             return response()->json(['message' => 'Admin not found'], 404);
         }
-        $salon = $admin->salon;
-        $salon->delete();
+        // $salon = $admin->salon;
+        // $salon->delete();
         $admin->delete();
         return response()->json(['message' => 'Admin Deleted successfully'], 201);
     }
