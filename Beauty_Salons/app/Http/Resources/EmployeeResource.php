@@ -17,6 +17,7 @@ class EmployeeResource extends JsonResource
         $isemployeeDetails = $request->routeIs('employee_details');
 
         return [
+            'id' => $this->id,
             'name' => $this->name,
             'image' => $this->image,
             'salary' => $this->salary,

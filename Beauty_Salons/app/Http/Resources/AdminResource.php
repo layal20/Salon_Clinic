@@ -16,6 +16,7 @@ class AdminResource extends JsonResource
     {
         $isAdminDetails = $request->routeIs('admin_details');
         return [
+            'id' => $this->id,
             'name' => $this->user_name,
             $this->mergeWhen($isAdminDetails, [
                 'salon' => $this->salon ? $this->salon->name  : null,

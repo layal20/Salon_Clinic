@@ -21,6 +21,7 @@ class ProductResource extends JsonResource
         $quantity = $quantity > 0 ? $quantity : null;
 
         return [
+            'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
             'price' => $this->price,

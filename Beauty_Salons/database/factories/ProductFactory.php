@@ -19,7 +19,7 @@ class ProductFactory extends Factory
     {
         return [
             'name' => fake()->unique()->name(),
-            'image' => $this->faker->imageUrl(300, 300),
+            'image' => fake()->unique()->imageUrl(300, 300),
             'description' => $this->faker->sentence(15),
             'price' => $this->faker->numberBetween(10000, 100000),
             'admin_id' => Admin::inRandomOrder()->first()->id,

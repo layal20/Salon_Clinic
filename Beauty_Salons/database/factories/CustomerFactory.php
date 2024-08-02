@@ -21,7 +21,7 @@ class CustomerFactory extends Factory
             'name' => fake()->unique()->name(),
             'email' => fake()->unique()->safeEmail(),
             'password' => Hash::make('layalpassword'),
-            'image' => $this->faker->imageUrl(300, 300),
+            'image' => fake()->unique()->imageUrl(300, 300),
             'phone_number' => fake()->unique()->phoneNumber(),
         ];
     }

@@ -15,9 +15,9 @@ return new class extends Migration
     {
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('name')->unique();
             $table->foreignId('admin_id')->constrained('admins')->cascadeOnDelete();
-            $table->string('image')->nullable();
+            $table->string('image')->unique();
             $table->double('salary');
             $table->foreignId('salon_id')->constrained('salons')->cascadeOnDelete();
             $table->timestamps();

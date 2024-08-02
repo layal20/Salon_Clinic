@@ -20,7 +20,7 @@ return new class extends Migration
             $table->time('time');
             $table->string('description');
             $table->double('price');
-            $table->string('image')->nullable()->unique();
+            $table->string('image')->unique();
             $table->foreignId('admin_id')->constrained('admins')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
             $table->enum('status', ['active', 'inactive'])->default('active');

@@ -18,6 +18,7 @@ class SalonResource extends JsonResource
 
         return
         [
+            'id' => $this->id,
             'name' => $this->name,
             $this->mergeWhen(!$isSalonDetails, [
                 'logo_image' => $this->logo_image,

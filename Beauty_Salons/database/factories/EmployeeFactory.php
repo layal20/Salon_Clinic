@@ -24,7 +24,7 @@ class EmployeeFactory extends Factory
             'name' => fake()->unique()->name(),
             'admin_id' => Admin::inRandomOrder()->first()->id,
             'salary' => $this->faker->numberBetween(1000000, 20000000),
-            'image' => $this->faker->imageUrl(300, 300),
+            'image' => fake()->unique()->imageUrl(300, 300),
             'salon_id' => Salon::inRandomOrder()->first()->id, 
         ];
     }

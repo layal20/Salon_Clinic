@@ -18,6 +18,7 @@ class ServiceResource extends JsonResource
         $isServiceSalon = $request->routeIs('salon_details');
 
         return [
+            'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
             'price' => $this->price,

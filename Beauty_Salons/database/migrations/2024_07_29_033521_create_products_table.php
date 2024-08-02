@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('name')->unique();
             $table->string('description');
             $table->double('price');
-            $table->string('image')->nullable()->unique();
+            $table->string('image')->unique();
             $table->foreignId('admin_id')->constrained('admins')->cascadeOnDelete();
             $table->timestamps();
         });

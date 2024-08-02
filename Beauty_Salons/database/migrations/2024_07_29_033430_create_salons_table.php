@@ -15,8 +15,8 @@ return new class extends Migration
     {
         Schema::create('salons', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('logo_image');
+            $table->string('name')->unique();
+            $table->string('logo_image')->unique();
             $table->string('description');
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->foreignId('super_admin_id')->constrained('super_admins')->cascadeOnDelete();

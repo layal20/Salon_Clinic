@@ -24,7 +24,7 @@ class SalonFactory extends Factory
     {
         return [
             'name' => fake()->unique()->name(),
-            'logo_image' => $this->faker->imageUrl(300, 300),
+            'logo_image' => fake()->unique()->imageUrl(300, 300),
             'description' => $this->faker->sentence(15),
             'status' => fake()->randomElement(['active', 'inactive']),
             'super_admin_id' => SuperAdmin::inRandomOrder()->first()->id,
