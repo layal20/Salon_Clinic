@@ -65,9 +65,9 @@ class EmployeesController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|unique:employees,name|max:255',
             'salary' => 'required|numeric',
-
+            'image' => 'required'
         ]);
 
         if (!$request->hasFile('image')) {
@@ -165,7 +165,7 @@ class EmployeesController extends Controller
             return response()->json(['message' => 'Employee not found for admin'], 404);
         }
         $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|unique:employees,name|max:255',
             'image' => 'sometimes',
             'salary' => 'sometimes|numeric',
         ]);

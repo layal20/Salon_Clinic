@@ -66,7 +66,7 @@ class ProductsController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|unique:products,name|string|max:255',
             'description' => 'required|string',
             'price' => 'required|numeric',
             'quantity' => 'required|integer|min:1',
@@ -162,7 +162,7 @@ class ProductsController extends Controller
             return response()->json(['message' => 'Product not found'], 404);
         }
         $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name' => 'sometimes|unique:products,name|string|max:255',
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric',
             'image' => 'sometimes',

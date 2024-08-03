@@ -26,7 +26,7 @@ class SalonsController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $request->validate([
-            'name' => 'required',
+            'name' => 'required|unique:salons,name',
             'description' => 'required',
             'status' => 'in:active,inactive',
             'logo_image' => 'required',
@@ -123,7 +123,7 @@ class SalonsController extends Controller
         }
 
         $request->validate([
-            'name' => 'sometimes',
+            'name' => 'sometimes|unique:salons,name',
             'description' => 'sometimes',
             'logo_image' => 'sometimes',
             'status' => 'sometimes|in:active,inactive',

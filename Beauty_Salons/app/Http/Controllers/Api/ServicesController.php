@@ -72,7 +72,7 @@ class ServicesController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|unique:services,name|string|max:255',
             'description' => 'required|string',
             'price' => 'required|numeric',
             'status' => 'required|string',
@@ -181,7 +181,7 @@ class ServicesController extends Controller
         }
 
         $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name' => 'sometimes|unique:services,name|string|max:255',
             'description' => 'sometimes|string',
             'price' => 'sometimes|numeric',
             'status' => 'sometimes|string',
