@@ -22,7 +22,6 @@ class ProductFactory extends Factory
             'image' => fake()->unique()->imageUrl(300, 300),
             'description' => $this->faker->sentence(15),
             'price' => $this->faker->numberBetween(10000, 100000),
-            'admin_id' => Admin::inRandomOrder()->first()->id,
         ];
     }
 }

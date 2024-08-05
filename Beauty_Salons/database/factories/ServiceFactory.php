@@ -23,7 +23,6 @@ class ServiceFactory extends Factory
             'status' => fake()->randomElement(['active', 'inactive']),
             'price' => $this->faker->numberBetween(10000, 100000),
             'image' => fake()->unique()->imageUrl(300, 300),
-            'admin_id' => Admin::inRandomOrder()->first()->id,
             'date' => fake()->date(),
             'description' => $this->faker->sentence(15),
             'time' => fake()->time(),
