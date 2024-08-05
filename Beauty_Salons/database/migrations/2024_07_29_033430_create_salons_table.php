@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('description');
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->foreignId('super_admin_id')->constrained('super_admins')->cascadeOnDelete();
+            $table->decimal('longitude', 10, 7)->nullable()->unique();
+            $table->foreignId('super_admin_id')->constrained('super_admins')->cascadeOnDelete();
+
             $table->timestamps();
         });
     }

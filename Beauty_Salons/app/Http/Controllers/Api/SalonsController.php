@@ -13,9 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class SalonsController extends Controller
 {
-    public function store(Request $request)
-    {
-        $super_admin = Auth::guard('super_admin')->check() ? Auth::guard('super_admin')->user() : null;
+    $super_admin = Auth::guard('super_admin')->check() ? Auth::guard('super_admin')->user() : null;
         $admin = Auth::guard('admin')->check() ? Auth::guard('admin')->user() : null;
         $customer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
         $user = $super_admin ?: $admin ?: $customer;
@@ -25,19 +23,50 @@ class SalonsController extends Controller
         if (!$user->can('add salon')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $request->validate([
-            'name' => 'required|unique:salons,name',
-            'description' => 'required',
-            'status' => 'in:active,inactive',
-            'logo_image' => 'required',
-        ]);
-        $data = $request->except('logo_image');
-        $file = $request->file('logo_image');
-        $path = $file->store('salons', [
-            'disk' => 'uploads'
-        ]);
-        $data['logo_image'] = $path;
-        $salon = Salon::create($data);
+        DB::transaction(function () use ($request) {
+            $request->validate(
+                [
+                    'name' => 'required|unique:salons,name',
+                    'description' => 'required',
+                    'status' => 'in:active,inactive',
+                    'logo_image' => 'required',
+                    'latitude' => 'required|unique:salons,latitude|numeric|between:-90,90',
+                    'longitude' => 'required|unique:salons,longitude|numeric|between:-180,180',
+                ],
+                [
+                    'name.unique' => 'this salon name is already exist'
+                ]
+            );
+            $data = $request->except('logo_image');
+            $file = $request->file('logo_image');
+            $path = $file->store('salons', [
+                'disk' => 'uploads'
+            ]);
+            $data['logo_image'] = $path;
+
+            $request->validate(
+                [
+                    'user_name' => 'required|unique:admins,user_name|string|max:255',
+                    'password' => 'required',
+                ],
+                [
+                    'user_name.unique' => 'this user name is already exist for this admin'
+
+
+                ]
+            );
+            $salon = Salon::create($data);
+
+            $admin = Admin::create([
+                'user_name' => $request->user_name,
+                'password' => Hash::make($request->password),
+                'salon_id' => $salon->id,
+            ]);
+            $role = Role::findByName('admin', 'admin');
+            $admin->assignRole($role);
+        });
+
+
         return Response::json('Salon Added Successfully', 200);
     }
 
@@ -127,6 +156,8 @@ class SalonsController extends Controller
             'description' => 'sometimes',
             'logo_image' => 'sometimes',
             'status' => 'sometimes|in:active,inactive',
+            'latitude' => 'sometimes|unique:salons,latitude|numeric|between:-90,90',
+            'longitude' => 'sometimes|unique:salons,longitude|numeric|between:-180,180',
         ]);
         if ($request->hasFile('logo_image')) {
             $old_image = $salon->logo_image;
@@ -141,7 +172,9 @@ class SalonsController extends Controller
             }
 
             if ($old_image && isset($new_image)) {
-                Storage::disk('uploads')->delete($old_image);
+               
+                    Storage::disk('uploads')->delete($salon->logo_image);
+                 
             }
             $salon->update($data);
         } else
@@ -171,13 +204,64 @@ class SalonsController extends Controller
         if (!$salon) {
             return response()->json(['message' => 'Salon not found'], 404);
         }
+        DB::transaction(function () use ($admin, $salon) {
+            $admin = $salon->admin;
+            $products = $salon->products();
+            $services = $salon->services();
+            $employees = $salon->employees();
 
-        $admin = $salon->admin;
-        $salon->delete();
-        if ($salon->logo_image) {
-            Storage::disk('uploads')->delete($salon->logo_image);
-        }
-        $admin->delete();
+            $services->each(function ($service) {
+                if ($service && $service->image) {
+                    if (Storage::disk('uploads')->exists($service->image)) {
+                        Storage::disk('uploads')->delete($service->image);
+                    } else {
+                    }
+                }
+            });
+
+
+            $products->each(function ($product) {
+                if ($product && $product->image) {
+                    if (Storage::disk('uploads')->exists($product->image)) {
+                        Storage::disk('uploads')->delete($product->image);
+                    } else {
+                    }
+                }
+            });
+
+
+
+            $employees->each(function ($employee) {
+                if ($employee && $employee->image) {
+                    if (Storage::disk('uploads')->exists($employee->image)) {
+                        Storage::disk('uploads')->delete($employee->image);
+                    } else {
+                    }
+                }
+            });
+            $services->each(function ($service) {
+                $service->delete();
+            });
+
+            $products->each(function ($product) {
+                $product->delete();
+            });
+
+            $employees->each(function ($employee) {
+                $employee->delete();
+            });
+            if ($salon->logo_image) {
+                if (Storage::disk('uploads')->exists($salon->logo_image)) {
+                    Storage::disk('uploads')->delete($salon->logo_image);
+                } else {
+                    Log::error("Salon logo image not found: " . $salon->logo_image);
+                }
+            }
+
+            $salon->delete();
+
+            $admin->delete();
+        });
         return Response::json([
             'message' => 'salon deleted successfully',
         ], 200);

@@ -28,6 +28,8 @@ class SalonFactory extends Factory
             'description' => $this->faker->sentence(15),
             'status' => fake()->randomElement(['active', 'inactive']),
             'super_admin_id' => SuperAdmin::inRandomOrder()->first()->id,
+            'latitude' => fake()->unique()->latitude(),
+            'longitude' => fake()->unique()->longitude(),
         ];
     }
 

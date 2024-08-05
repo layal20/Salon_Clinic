@@ -26,21 +26,27 @@ class EmployeesController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        if (!$user->can('view all services')) {
+        if (!$user->can('view all employees')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         if ($super_admin) {
-            Log::info('Logged in as Super Admin:', ['super_admin_id' => $super_admin->id]);
             $employees = Employee::with('admin')->get();
+            if (!$employees) {
+                return response()->json(['message' => 'there is no employees yet.'], 403);
+            }
             return EmployeeResource::collection($employees);
         } elseif ($admin) {
-            Log::info('Logged in as Admin:', ['admin_id' => $admin->id]);
             $admin = Auth::guard('admin')->user();
             $employees = Employee::where('admin_id', $admin->id)->get();
+            if (!$employees) {
+                return response()->json(['message' => 'you dont have any employees yet.'], 403);
+            }
             return EmployeeResource::collection($employees);
         } elseif ($customer) {
-            Log::info('Logged in as Customer:', ['customer_id' => $customer->id]);
             $employees = Employee::query()->get();
+            if (!$employees) {
+                return response()->json(['message' => 'there is no employees yet.'], 403);
+            }
             return EmployeeResource::collection($employees);
         }
     }
@@ -66,8 +72,9 @@ class EmployeesController extends Controller
         }
         $request->validate([
             'name' => 'required|string|unique:employees,name|max:255',
+            'image' => 'required',
             'salary' => 'required|numeric',
-            'image' => 'required'
+
         ]);
 
         if (!$request->hasFile('image')) {
@@ -110,7 +117,6 @@ class EmployeesController extends Controller
         }
 
         if ($super_admin) {
-            Log::info('Logged in as Super Admin:', ['super_admin_id' => $super_admin->id]);
 
             $employee = Employee::with(['service', 'admin'])->find($id);
             if (!$employee) {
@@ -120,7 +126,6 @@ class EmployeesController extends Controller
         }
 
         if ($admin) {
-            Log::info('Logged in as Admin:', ['admin_id' => $admin->id]);
 
             $employee = Employee::with(['service', 'admin'])->where('admin_id', $admin->id)->find($id);
             if (!$employee) {
@@ -130,7 +135,6 @@ class EmployeesController extends Controller
         }
 
         if ($customer) {
-            Log::info('Logged in as Customer:', ['customer_id' => $customer->id]);
 
             $employee = Employee::with('service')->find($id);
             if (!$employee) {
@@ -162,7 +166,7 @@ class EmployeesController extends Controller
         }
         $employee = Employee::query()->where('admin_id', $admin->id)->find($id);
         if (!$employee) {
-            return response()->json(['message' => 'Employee not found for admin'], 404);
+            return response()->json(['message' => 'The employee is either not assigned to this admin or does not exist.'], 403);
         }
         $request->validate([
             'name' => 'sometimes|string|unique:employees,name|max:255',
@@ -182,7 +186,7 @@ class EmployeesController extends Controller
             }
 
             if ($old_image && isset($new_image)) {
-                Storage::disk('uploads')->delete($old_image);
+                Storage::disk('uploads')->delete($employee->image);
             }
             $employee->update($data);
         } else
@@ -212,15 +216,16 @@ class EmployeesController extends Controller
 
         $employee = Employee::query()->where('admin_id', $admin->id)->find($id);
         if (!$employee) {
-            return response()->json(['message' => 'Employee not found'], 404);
+            return response()->json(['message' => 'The employee is either not assigned to this admin or does not exist.'], 403);
         }
         $employee->delete();
         if ($employee->image) {
-            Storage::disk('uploads')->delete($employee->image);
+            if (Storage::disk('uploads')->exists($employee->image)) {
+                Storage::disk('uploads')->delete($employee->image);
+            }
         }
         return response()->json([
             'message' => 'Employee deleted successfully',
         ], 200);
-        // return response()->json(['message' => 'Employee Deleted successfully'], 201);
     }
 }

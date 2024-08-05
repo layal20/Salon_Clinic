@@ -41,7 +41,7 @@ class CustomersController extends Controller
             }])
                 ->where('name', 'like', "%{$name}%")
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Product Not Found'], 404);
             }
             return ProductResource::collection($results);
@@ -49,14 +49,16 @@ class CustomersController extends Controller
             $results = Product::with(['salons' => function ($query) {
                 $query->withPivot('quantity');
             }])
-                ->where('admin_id', $admin->id)
+                ->whereHas('admins', function ($query) use ($admin) {
+                    $query->where('admin_id', $admin->id);
+                })
                 ->where(
                     'name',
                     'like',
                     "%{$name}%"
                 )
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Product Not Found'], 404);
             }
             return ProductResource::collection($results);
@@ -66,7 +68,7 @@ class CustomersController extends Controller
             }])
                 ->where('name', 'like', "%{$name}%")
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Product Not Found'], 404);
             }
             return ProductResource::collection($results);
@@ -81,7 +83,6 @@ class CustomersController extends Controller
         $user = $super_admin ?: $admin ?: $customer;
 
         if (!$user) {
-            //Log::info('Not Authenticated');
 
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
@@ -96,10 +97,10 @@ class CustomersController extends Controller
             $results = Salon::with(['products' => function ($query) {
                 $query->withPivot('quantity');
             }, 'services'])
-                ->active()
+            ->active()
                 ->where('name', 'like', "%{$name}%")
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return Response::json([
                     'message' => 'Salon Not Found'
                 ]);
@@ -107,17 +108,12 @@ class CustomersController extends Controller
             return SalonResource::collection($results);
         } elseif ($admin) {
             $results = Salon::with(['products' => function ($query) {
-                $query->withPivot('quantity');
+                $query->wherePivot('quantity', '>', 0)->withPivot('quantity');
             }, 'services'])
-                ->active()
+            ->active()
                 ->where('id', $admin->salon_id)
-                ->where(
-                    'name',
-                    'like',
-                    "%{$name}%"
-                )
-                ->get();
-            if (!$results) {
+                ->where('name', 'like', "%{$name}%")->get();
+            if ($results->isEmpty()) {
                 return Response::json([
                     'message' => 'Salon Not Found'
                 ]);
@@ -127,10 +123,10 @@ class CustomersController extends Controller
             $results = Salon::with(['products' => function ($query) {
                 $query->withPivot('quantity');
             }, 'services'])
-                ->active()
+            ->active()
                 ->where('name', 'like', "%{$name}%")
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return Response::json([
                     'message' => 'Salon Not Found'
                 ]);
@@ -157,30 +153,31 @@ class CustomersController extends Controller
 
         if ($super_admin) {
             $results = Service::with(['salons'])
-                ->where('name', 'like', "%{$name}%")
-                ->get();
-            if (!$results) {
+            ->where('name', 'like', "%{$name}%")
+            ->get();
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Service Not Found'], 404);
             }
             return ServiceResource::collection($results);
         } elseif ($admin) {
-            $results = Service::with(['salons'])
-                ->where('admin_id', $admin->id)
+            $results = Service::with(['salons'])->whereHas('admins', function ($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
                 ->where(
                     'name',
                     'like',
                     "%{$name}%"
                 )
                 ->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Service Not Found'], 404);
             }
             return ServiceResource::collection($results);
         } elseif ($customer) {
             $results = Service::with(['salons'])
-                ->where('name', 'like', "%{$name}%")
-                ->get();
-            if (!$results) {
+            ->where('name', 'like', "%{$name}%")
+            ->get();
+            if ($results->isEmpty()) {
                 return response()->json(['message' => 'Service Not Found'], 404);
             }
             return ServiceResource::collection($results);
@@ -197,24 +194,24 @@ class CustomersController extends Controller
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
 
-        if (!$user->can('search about service')) {
+        if (!$user->can('search about employee')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         $results = null;
         if ($super_admin) {
             $results = Employee::with(['salon', 'service'])->where('name', 'like', "%{$name}%")->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return Response::json([
-                    'Service Not Found'
+                    'Employee Not Found'
                 ]);
             }
             return EmployeeResource::collection($results);
         } elseif ($admin) {
             $results = Employee::with(['salon', 'service'])->where('admin_id', $admin->id)->where('name', 'like', "%{$name}%")->get();
-            if (!$results) {
+            if ($results->isEmpty()) {
                 return Response::json([
-                    'Service Not Found'
+                    'Employee Not Found'
                 ]);
             }
             return EmployeeResource::collection($results);
@@ -222,7 +219,7 @@ class CustomersController extends Controller
             $results = Employee::with(['salon', 'service'])->where('name', 'like', "%{$name}%")->get();
             if ($results->isEmpty()) {
                 return Response::json([
-                    'Service Not Found'
+                    'Employee Not Found'
                 ]);
             }
             return EmployeeResource::collection($results);

@@ -22,6 +22,8 @@ class Salon extends Model
         'logo_image',
         'description',
         'status',
+        'latitude',
+        'longitude'
     ];
 
     public function scopeActive(Builder $builder)

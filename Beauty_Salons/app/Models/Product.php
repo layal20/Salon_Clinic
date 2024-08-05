@@ -20,7 +20,6 @@ class Product extends Model
         'description',
         'price',
         'image',
-        'admin_id'
     ];
 
     /**
@@ -38,8 +37,8 @@ class Product extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function admin(): BelongsTo
+    public function admins(): BelongsToMany
     {
-        return $this->belongsTo(Admin::class, 'admin_id', 'id');
+        return $this->belongsToMany(Admin::class, 'admin_products', 'product_id', 'admin_id', 'id');
     }
 }

@@ -31,6 +31,9 @@ class AdminsController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $admins = Admin::query()->get();
+        if (!$admins) {
+            return response()->json('there is no admins yet');
+        }
         return AdminResource::collection($admins);
     }
 
@@ -52,22 +55,50 @@ class AdminsController extends Controller
         if (!$user->hasPermissionTo('add admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $request->validate([
-            'user_name' => 'required|string|max:255',
-            'password' => 'required',
-            'salon_id' => 'required'
+        DB::transaction(function () use ($request) {
+            $request->validate(
+                [
+                    'name' => 'required|unique:salons,name',
+                    'description' => 'required',
+                    'status' => 'in:active,inactive',
+                    'logo_image' => 'required',
+                    'latitude' => 'required|unique:salons,latitude|numeric|between:-90,90',
+                    'longitude' => 'required|unique:salons,longitude|numeric|between:-180,180',
+                ],
+                [
+                    'name.unique' => 'this salon name is already exist'
+                ]
+            );
+            $data = $request->except('logo_image');
+            $file = $request->file('logo_image');
+            $path = $file->store('salons', [
+                'disk' => 'uploads'
+            ]);
+            $data['logo_image'] = $path;
 
-        ]);
+            $request->validate(
+                [
+                    'user_name' => 'required|unique:admins,user_name|string|max:255',
+                    'password' => 'required',
+                ],
+                [
+                    'user_name.unique' => 'this user name is already exist for this admin'
 
-        $admin = Admin::create([
-            'user_name' => $request->user_name,
-            'password' => Hash::make($request->password),
-            'salon_id' => $request->salon_id,
-        ]);
+
+                ]
+            );
+            $salon = Salon::create($data);
+
+            $admin = Admin::create([
+                'user_name' => $request->user_name,
+                'password' => Hash::make($request->password),
+                'salon_id' => $salon->id,
+            ]);
+            $role = Role::findByName('admin', 'admin');
+            $admin->assignRole($role);
+        });
 
         return response()->json(['message' => 'admin added to salon successfully'], 201);
-
-
     }
 
     /**
@@ -88,7 +119,7 @@ class AdminsController extends Controller
         if (!$user->hasPermissionTo('view admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $admin = Admin::with(['services', 'salon'])->find($id);
+        $admin = Admin::with(['services', 'salon', 'products', 'employees'])->find($id);
         if (!$admin) {
             return response()->json(['message' => 'Admin not found'], 404);
         }
@@ -117,30 +148,18 @@ class AdminsController extends Controller
         if (!$admin) {
             return response()->json(['message' => 'Admin not found'], 404);
         }
-        $request->validate([
-            'user_name' => 'sometimes|string|max:255',
-            'password' => 'sometimes',
-            'salon_id' => 'sometimes'
-
+        $validatedData = $request->validate([
+            'user_name' => 'sometimes|string|unique:admins,user_name,' . $admin->id . '|max:255',
+            'password' => 'sometimes|string|min:6',
         ]);
-        if ($request->has('salon_id')) {
-            $salon = Salon::find($request->salon_id);
-            if (!$salon) {
-                return response()->json(['message' => 'Salon not found'], 404);
-                $admin->salon_id = $request->salon_id;
-                $admin->save();
-            }
-        }
+
         if ($request->has('password')) {
             $admin->password = Hash::make($request->password);
-            $admin->save();
         }
         if ($request->has('user_name')) {
             $admin->user_name = $request->user_name;
-            $admin->save();
         }
-
-
+        $admin->save();
         return response()->json(['message' => 'admin Info updated successfully'], 201);
     }
 
@@ -150,23 +169,80 @@ class AdminsController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy($id, Request $request)
     {
         $super_admin = Auth::guard('super_admin')->check() ? Auth::guard('super_admin')->user() : null;
         $admin = Auth::guard('admin')->check() ? Auth::guard('admin')->user() : null;
         $customer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
         $user = $super_admin ?: $admin ?: $customer;
+
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
+
         if (!$user->hasPermissionTo('delete admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
         $admin = Admin::query()->find($id);
         if (!$admin) {
             return response()->json(['message' => 'Admin not found'], 404);
         }
-        $admin->delete();
+
+        DB::transaction(function () use ($admin) {
+            $salon = $admin->salon;
+            $products = $admin->products();
+            $services = $admin->services();
+            $employees = $admin->employees();
+            $services->each(function ($service) {
+                if ($service && $service->image) {
+                    if (Storage::disk('uploads')->exists($service->image)) {
+                        Storage::disk('uploads')->delete($service->image);
+                    } else {
+                    }
+                }
+            });
+
+
+            $products->each(function ($product) {
+                if ($product && $product->image) {
+                    if (Storage::disk('uploads')->exists($product->image)) {
+                        Storage::disk('uploads')->delete($product->image);
+                    }
+                }
+            });
+
+
+
+            $employees->each(function ($employee) {
+                if ($employee && $employee->image) {
+                    if (Storage::disk('uploads')->exists($employee->image)) {
+                        Storage::disk('uploads')->delete($employee->image);
+                    }
+                }
+            });
+            $services->each(function ($service) {
+                $service->delete();
+            });
+
+            $products->each(function ($product) {
+                $product->delete();
+            });
+
+            $employees->each(function ($employee) {
+                $employee->delete();
+            });
+            if ($salon->logo_image) {
+                if (Storage::disk('uploads')->exists($salon->logo_image)) {
+                    Storage::disk('uploads')->delete($salon->logo_image);
+                }
+            }
+
+            $salon->delete();
+
+            $admin->delete();
+        });
+
         return response()->json(['message' => 'Admin Deleted successfully'], 201);
     }
 
@@ -180,7 +256,7 @@ class AdminsController extends Controller
         if (!$super_admin->can('search about admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $results = admin::with('salon')->where('user_name', 'like', "%{$name}%")->get();
+        $results = admin::with(['salon', 'services', 'products'])->where('user_name', 'like', "%{$name}%")->get();
         if ($results->isEmpty()) {
             return Response::json([
                 'Admin Not Found'

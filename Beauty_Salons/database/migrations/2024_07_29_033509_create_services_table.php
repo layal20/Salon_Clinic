@@ -21,7 +21,6 @@ return new class extends Migration
             $table->string('description');
             $table->double('price');
             $table->string('image')->unique();
-            $table->foreignId('admin_id')->constrained('admins')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();

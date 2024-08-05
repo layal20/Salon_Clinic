@@ -25,13 +25,14 @@ class HomeController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        Log::info('User Logged In:', ['$user_id' => $user->id]);
 
         if (!$user->hasPermissionTo('view all salons')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-
+        if (!$salons) {
+            return response()->json('there is no salons yet');
+        }
         $salons = Salon::active()->get();
         return SalonResource::collection($salons);
     }

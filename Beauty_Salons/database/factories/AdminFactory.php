@@ -2,7 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Models\Admin;
+use App\Models\Employee;
 use App\Models\Salon;
+use App\Models\Service;
 use App\Models\SuperAdmin;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -25,5 +28,17 @@ class AdminFactory extends Factory
             'super_admin_id' => SuperAdmin::inRandomOrder()->first()->id,
             'salon_id' => Salon::inRandomOrder()->first()->id, 
         ];
+    }
+
+    public function configure()
+    {
+        return $this->afterCreating(function (Admin $admin) {
+
+            $employee = Employee::factory()->count(7)->create(['admin_id' => $admin->id]);
+            $services = Service::factory()->count(7)->create();
+            foreach ($services as $service) {
+                $admin->services()->attach($service->id);
+            }
+        });
     }
 }

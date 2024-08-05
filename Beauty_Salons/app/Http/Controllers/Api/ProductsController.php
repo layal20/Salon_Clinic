@@ -35,13 +35,24 @@ class ProductsController extends Controller
         }
 
         if ($super_admin) {
-            $products = Product::with('admin')->get();
+            $products = Product::with('admins')->get();
+            if ($products->isEmpty()) {
+                return response()->json(['message' => 'there is no products yet.'], 403);
+            }
             return ProductResource::collection($products);
         } elseif ($admin) {
-            $products = Product::where('admin_id', $admin->id)->get();
+            $products = Product::whereHas('admins', function ($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })->get();
+            if (!$products) {
+                return response()->json(['message' => 'you do not have any products yet.'], 403);
+            }
             return ProductResource::collection($products);
         } else {
             $products = Product::get();
+            if (!$products) {
+                return response()->json(['message' => 'there is no products yet.'], 403);
+            }
             return ProductResource::collection($products);
         }
     }
@@ -61,18 +72,37 @@ class ProductsController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        Log::info('Current user:', ['user' => $user]);
+
+
         if (!$user->can('add product')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $request->validate([
-            'name' => 'required|unique:products,name|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric',
-            'quantity' => 'required|integer|min:1',
-            'image' => 'required'
+        $request->validate(
+            [
+                'name' => [
+                    'required',
+                    Rule::unique('products')->where(function ($query) use ($request, $admin) {
+                        return $query->whereExists(function ($query) use ($admin) {
+                            $query->select(DB::raw(1))
+                                ->from('admin_products')
+                                ->whereColumn('admin_products.product_id', 'products.id')
+                                ->where('admin_products.admin_id', $admin->id);
+                        });
+                    }),
+                    'string',
+                    'max:255'
+                ],
 
-        ]);
+                'description' => 'required|string',
+                'price' => 'required|numeric',
+                'quantity' => 'required|integer|min:1',
+                'image' => 'required'
+            ],
+            [
+                'name.unique' => 'this product is already exist for this admin'
+            ]
+        );
+
         $data = $request->except('image');
         $file = $request->file('image');
         $path = $file->store('products', [
@@ -84,10 +114,10 @@ class ProductsController extends Controller
             'description' => $request->description,
             'price' => $request->price,
             'image' => $path,
-            'admin_id' => $admin->id,
         ]);
-        $salon_id = $admin->salon_id;
-        $salon = Salon::query()->find($salon_id);
+        $admin->products()->attach($product->id);
+        $salon = $admin->salon;
+
         $salon->products()->attach($product->id, ['quantity' => $request->quantity]);
         return response()->json(['message' => 'Product created and added to salon successfully'], 201);
     }
@@ -107,27 +137,25 @@ class ProductsController extends Controller
         $customer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
         $user = $super_admin ?: $admin ?: $customer;
 
-        //log::info('Current user:', ['user' => $user]);
 
         if ($super_admin) {
-            //Log::info('Logged in as Super Admin:', ['super_admin_id' => $super_admin->id]);
-            $product = Product::find($id);
+            $product = Product::with('salons', 'admins')->find($id);
             if (!$product) {
-                //Log::info('Product not found for super admin', ['product_id' => $id]);
                 return response()->json(['message' => 'Product not found for super admin'], 404);
             }
             return new ProductResource($product);
         } elseif ($admin) {
-            $product = Product::where('admin_id', $admin->id)->find($id);
+            $product = Product::whereHas('admins', function ($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })->with('salons')->find($id);
             if (!$product) {
-                //Log::info('Product not found for admin', ['admin_id' => $admin->id, 'product_id' => $id]);
                 return response()->json(['message' => 'Product not found for admin'], 404);
             }
             return new ProductResource($product);
         } elseif ($customer) {
             $product = Product::with(
                 ['salons' => function ($query) {
-                    $query->withPivot('quantity');
+                    $query->wherePivot('quantity', '>', 0)->withPivot('quantity');
                 }]
             )->find($id);
             if (!$product) {
@@ -157,17 +185,36 @@ class ProductsController extends Controller
         if (!$user->can('update product details')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $product = Product::query()->find($id);
+        $product = Product::whereHas('admins', function ($query) use ($admin) {
+            $query->where('admin_id', $admin->id);
+        })->find($id);
         if (!$product) {
-            return response()->json(['message' => 'Product not found'], 404);
+            return response()->json(['message' => 'Product not found or you do not have permission to edit it'], 404);
         }
-        $request->validate([
-            'name' => 'sometimes|unique:products,name|string|max:255',
-            'description' => 'sometimes|string',
-            'price' => 'sometimes|numeric',
-            'image' => 'sometimes',
-            'quantity' => 'sometimes'
-        ]);
+        $request->validate(
+            [
+                'name' => [
+                    'sometimes',
+                    Rule::unique('products')->where(function ($query) use ($request, $admin) {
+                        return $query->whereExists(function ($query) use ($admin, $request) {
+                            $query->select(DB::raw(1))
+                                ->from('admin_products')
+                                ->whereColumn('admin_products.product_id', 'products.id')
+                                ->where('admin_products.admin_id', $admin->id);
+                        });
+                    }),
+                    'string',
+                    'max:255'
+                ],
+                'description' => 'sometimes|string',
+                'price' => 'sometimes|numeric',
+                'quantity' => 'sometimes|integer|min:1',
+                'image' => 'sometimes'
+            ],
+            [
+                'name.unique' => 'this product is already exist for this admin'
+            ]
+        );
         if ($request->hasFile('image')) {
             $old_image = $product->image;
             $data = $request->except('image');
@@ -181,13 +228,14 @@ class ProductsController extends Controller
             }
 
             if ($old_image && isset($new_image)) {
-                Storage::disk('uploads')->delete($old_image);
+                if (Storage::disk('uploads')->exists($product->image)) {
+                    Storage::disk('uploads')->delete($product->image);
+                }
             }
-
             $product->update($data);
-        } else
-
-            if ($request->has('quantity')) {
+            $admin->products()->sync($product->id);
+        }
+        if ($request->has('quantity')) {
             $salon_id = $admin->salon_id;
             $salon = Salon::find($salon_id);
 
@@ -199,12 +247,16 @@ class ProductsController extends Controller
 
             if ($productInSalon) {
                 $salon->products()->updateExistingPivot($id, ['quantity' => $request->quantity]);
-                return response()->json(['message' => 'Product quantity updated successfully'], 200);
+                $product->update($request->all());
+                $admin->products()->sync($product->id);
+                return response()->json(['message' => 'Product  updated successfully'], 200);
             } else {
                 return response()->json(['message' => 'Product not found in this salon'], 404);
             }
         }
         $product->update($request->all());
+        $admin->products()->sync($product->id);
+
         return response()->json(['message' => 'Product updated successfully'], 200);
     }
 
@@ -223,17 +275,17 @@ class ProductsController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        if (!$user->can('delete service')) {
+        if (!$user->can('delete product')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $product = Product::query()->where('admin_id', $admin->id)->find($id);
-
+        $product = Product::whereHas('admins', function ($query) use ($admin) {
+            $query->where('admin_id', $admin->id);
+        })->find($id);
         if (!$product) {
-            if (!$product) {
-                Log::info('Product not found for admin', ['admin_id' => $admin->id, 'product_id' => $id]);
-                return response()->json(['message' => 'Product not found for admin'], 404);
-            }
+            return response()->json(['message' => 'Product not found or you do not have permission to edit it'], 404);
         }
+
+
         $product->delete();
         if ($product->image) {
             Storage::disk('uploads')->delete($product->image);

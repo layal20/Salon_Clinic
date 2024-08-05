@@ -20,7 +20,6 @@ class Service extends Model
         'date',
         'description',
         'time',
-        'admin_id',
         'employee_id',
         'image'
     ];
@@ -40,10 +39,11 @@ class Service extends Model
      *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function admin(): BelongsTo
+    public function admins(): BelongsToMany
     {
-        return $this->belongsTo(Admin::class, 'admin_id', 'id');
+        return $this->belongsToMany(Admin::class, 'admin_services', 'service_id', 'admin_id', 'id');
     }
+
 
     /**
      * Get the employee associated with the service

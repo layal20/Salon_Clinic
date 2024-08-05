@@ -28,23 +28,30 @@ class ServicesController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        Log::info('Logged in as Customer:', ['customer_id' => $customer->id]);
 
         if (!$user->can('view all services')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         if ($super_admin) {
-            Log::info('Logged in as Super Admin:', ['super_admin_id' => $super_admin->id]);
-            $services = service::with('admin')->active()->get();
+            $services = service::with('admins')->active()->get();
+            if (!$services) {
+                return response()->json(['message' => 'there is no services yet.'], 403);
+            }
             return ServiceResource::collection($services);
         } elseif ($admin) {
-            Log::info('Logged in as Admin:', ['admin_id' => $admin->id]);
             $admin = Auth::guard('admin')->user();
-            $services = Service::active()->where('admin_id', $admin->id)->get();
+            $services = Service::whereHas('admins', function ($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })->active()->get();
+            if (!$services) {
+                return response()->json(['message' => 'you do not have any services yet.'], 403);
+            }
             return ServiceResource::collection($services);
         } elseif ($customer) {
-            Log::info('Logged in as Customer:', ['customer_id' => $customer->id]);
             $services = service::active()->get();
+            if (!$services) {
+                return response()->json(['message' => 'there is no services yet.'], 403);
+            }
             return ServiceResource::collection($services);
         }
     }
@@ -66,40 +73,68 @@ class ServicesController extends Controller
         if (!$user) {
             return response()->json(['message' => 'Not Authenticated'], 401);
         }
-        Log::info('Current user:', ['user' => $user]);
 
         if (!$user->can('add service')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $request->validate([
-            'name' => 'required|unique:services,name|string|max:255',
-            'description' => 'required|string',
-            'price' => 'required|numeric',
-            'status' => 'required|string',
-            'date' => 'required',
-            'time' => 'date_format:H:i:s',
-            'employee_id' => 'required|exists:employees,id',
-            'image' => 'required'
-        ]);
+        $request->validate(
+            [
+                'name' => [
+                    'required',
+                    Rule::unique('services')->where(function ($query) use ($request, $admin) {
+                        return $query->whereExists(function ($query) use ($admin) {
+                            $query->select(DB::raw(1))
+                                ->from('admin_services')
+                                ->whereColumn('admin_services.service_id', 'services.id')
+                                ->where('admin_services.admin_id', $admin->id);
+                        });
+                    }),
+                    'string',
+                    'max:255'
+                ],
+
+                'description' => 'required|string',
+                'price' => 'required|numeric',
+                'status' => 'required|string',
+                'date' => 'required',
+                'time' => 'date_format:H:i:s',
+                'employee_id' => 'required|exists:employees,id',
+                'image' => 'required',
+            ],
+            [
+                'name.unique' => 'this service is already exist for this admin'
+            ]
+        );
         $data = $request->except('image');
         $file = $request->file('image');
         $path = $file->store('services', [
             'disk' => 'uploads'
         ]);
         $data['image'] = $path;
-        $service = Service::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'price' => $request->price,
-            'status' => $request->status,
-            'image' => $path,
-            'admin_id' => $admin->id,
-            'date' => $request->date,
-            'time' => $request->time,
-            'employee_id' => $request->employee_id
-        ]);
-        $salon_id = $admin->salon_id;
-        $salon = Salon::query()->find($salon_id);
+        $employeeId = $request->employee_id;
+
+        $employee = Employee::where('id', $employeeId)
+            ->where('admin_id', $admin->id)
+            ->doesntHave('service')
+            ->first();
+
+        if (!$employee) {
+            return response()->json(['message' => 'The employee is either not assigned to this admin or already has a service.'], 403);
+        }
+
+        $service = new Service();
+        $service->name = $request->name;
+        $service->description = $request->description;
+        $service->price = $request->price;
+        $service->employee_id = $employeeId;
+        $service->image = $path;
+        $service->status = $request->status;
+        $service->date = $request->date;
+        $service->time = $request->time;
+        $service->save();
+
+        $admin->services()->attach($service->id);
+        $salon = $admin->salon;
         $salon->services()->attach($service->id);
         return response()->json(['message' => 'Service created and added to salon successfully'], 201);
     }
@@ -128,23 +163,23 @@ class ServicesController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         if ($super_admin) {
-            Log::info('Logged in as Super Admin:', ['super_admin_id' => $super_admin->id]);
-            $service = Service::with(['admin', 'salons'])->active()->find($id);
+            $service = Service::with(['admins', 'salons', 'employee'])->active()->find($id);
             if (!$service) {
                 return response()->json(['message' => 'Service not found'], 404);
             }
 
             return new ServiceResource($service);
         } elseif ($admin) {
-            Log::info('Logged in as Admin:', ['admin_id' => $admin->id]);
-            $service = Service::with('salons')->active()->where('admin_id', $admin->id)->find($id);
+
+            $service = Service::whereHas('admins', function ($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })->with('salons', 'employee')->active()->find($id);
             if (!$service) {
                 return response()->json(['message' => 'Service not found'], 404);
             }
             return new ServiceResource($service);
         } elseif ($customer) {
-            Log::info('Logged in as Customer:', ['customer_id' => $customer->id]);
-            $service = Service::with('salons')->active()->find($id);
+            $service = Service::with('salons', 'employee')->active()->find($id);
             if (!$service) {
                 return response()->json(['message' => 'Service not found'], 404);
             }
@@ -175,22 +210,42 @@ class ServicesController extends Controller
         if (!$user->can('update service details')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $service = Service::query()->where('admin_id', $admin->id)->find($id);
+        $service = Service::whereHas('admins', function ($query) use ($admin) {
+            $query->where('admin_id', $admin->id);
+        })->find($id);
+
         if (!$service) {
-            return response()->json(['message' => 'Service not found'], 404);
+            return response()->json(['message' => 'Service not found or you do not have permission to edit it'], 404);
         }
 
-        $request->validate([
-            'name' => 'sometimes|unique:services,name|string|max:255',
-            'description' => 'sometimes|string',
-            'price' => 'sometimes|numeric',
-            'status' => 'sometimes|string',
-            'image' => 'sometimes',
-            'date' => 'sometimes|',
-            'time' => 'sometimes|date_format:H:i:s',
-            'employee_id' => 'sometimes|exists:employees,id',
-            'image' => 'sometimes'
-        ]);
+        $request->validate(
+            [
+                'name' => [
+                    'sometimes',
+                    Rule::unique('services')->where(function ($query) use ($request, $admin) {
+                        return $query->whereExists(function ($query) use ($admin) {
+                            $query->select(DB::raw(1))
+                                ->from('admin_services')
+                                ->whereColumn('admin_services.service_id', 'services.id')
+                                ->where('admin_services.admin_id', $admin->id);
+                        });
+                    }),
+                    'string',
+                    'max:255'
+                ],
+
+                'description' => 'sometimes|string',
+                'price' => 'sometimes|numeric',
+                'status' => 'sometimes|string',
+                'date' => 'sometimes',
+                'time' => 'date_format:H:i:s',
+                'employee_id' => 'sometimes|exists:employees,id',
+                'image' => 'sometimes',
+            ],
+            [
+                'name.unique' => 'this service is already exist for this admin'
+            ]
+        );
         if ($request->hasFile('image')) {
             $old_image = $service->image;
             $data = $request->except('image');
@@ -204,11 +259,15 @@ class ServicesController extends Controller
             }
 
             if ($old_image && isset($new_image)) {
-                Storage::disk('uploads')->delete($old_image);
+
+                Storage::disk('uploads')->delete($service->image);
             }
             $service->update($data);
+            $admin->services()->sync($service->id);
         } else
             $service->update($request->all());
+        $admin->services()->sync($service->id);
+
         return response()->json(['message' => 'Service updated successfully'], 200);
     }
 
@@ -232,13 +291,18 @@ class ServicesController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $service = Service::query()->where('admin_id', $admin->id)->find($id);
+        $service = Service::whereHas('admins', function ($query) use ($admin) {
+            $query->where('admin_id', $admin->id);
+        })->find($id);
+
         if (!$service) {
-            return response()->json(['message' => 'Service not found'], 404);
+            return response()->json(['message' => 'Service not found or you do not have permission to edit it'], 404);
         }
         $service->delete();
         if ($service->image) {
-            Storage::disk('uploads')->delete($service->image);
+            if (Storage::disk('uploads')->exists($service->image)) {
+                Storage::disk('uploads')->delete($service->image);
+            }
         }
         return response()->json([
             'message' => 'Service deleted successfully',

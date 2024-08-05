@@ -5,12 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Permission\Traits\HasRoles;
 use Spatie\Permission\Traits\HasPermissions;
 use Laravel\Passport\HasApiTokens;
 
-use Laravel\Sanctum\HasApiTokens as SanctumHasApiTokens;
 
 class Admin extends Authenticatable
 {
@@ -50,9 +50,9 @@ class Admin extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function product(): HasMany
+    public function products(): BelongsToMany
     {
-        return $this->hasMany(Product::class, 'admin_id', 'id');
+        return $this->belongsToMany(Product::class, 'admin_products', 'admin_id', 'product_id', 'id');
     }
 
     /**
@@ -60,26 +60,27 @@ class Admin extends Authenticatable
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function services(): HasMany
+    public function services(): BelongsToMany
     {
-        return $this->hasMany(Service::class, 'admin_id', 'id');
+        return $this->belongsToMany(Service::class, 'admin_services', 'admin_id', 'service_id', 'id');
     }
     /**
      * Get all of the employee for the admin
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function employee(): HasMany
+    public function employees(): HasMany
     {
         return $this->hasMany(Employee::class, 'admin_id', 'id');
     }
 
     protected static function booted()
     {
-        static::creating(
-            function (admin $admin) {
-                $admin->super_admin_id = 1;
-            }
-        );
+        static::creating(function ($admin) {
+            $admin->super_admin_id = 1;
+        });
     }
+
+  
+
 }
